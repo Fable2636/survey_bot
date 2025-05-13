@@ -1,0 +1,39 @@
+# Байткод Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Дистрибутивы 
+*.so
+dist/
+build/
+*.egg-info/
+
+# Виртуальное окружение
+venv/
+env/
+ENV/
+.venv/
+
+# Локальные конфигурационные файлы
+.env
+*.log
+*.sqlite
+*.db
+
+# Файлы IDE и редакторов
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Кэш и временные файлы
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Файлы резервных копий
+*~
+\#*\#
