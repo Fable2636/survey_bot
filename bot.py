@@ -59,7 +59,7 @@ municipalities = [
     "Черноярский округ"
 ]
 
-categories = ["Ученик", "Студент ССУЗа"]
+categories = ["Ученик", "Студент ССУЗа", "Студент ВУЗа"]
 
 directions = [
     "Волонтерство и добровольчество", "Труд, профессия и свое дело", "Спорт",
@@ -91,24 +91,26 @@ def load_data_from_db():
 # Загружаем данные при запуске
 load_data_from_db()
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Обработчик команды /start, проверяет подписку на канал"""
     user = update.effective_user
     user_id = user.id
     
     # Создаем словарь для хранения ответов пользователя если его еще нет
-    if user_id not in user_responses:
-        user_responses[user_id] = {
+    user_responses[user_id] = {
             'selected_directions': []
         }
     
     await update.message.reply_text(
-        f"Привет, {user.first_name}! Я бот для проведения опроса Движения Первых. "
-        f"Сначала нужно проверить, подписаны ли вы на канал."
+        f"Привет, {user.first_name}! Мы рады приветствовать тебя в главном молодежном чат-боте региона. "
+        f"Не стесняйся! Пройди опрос! Внеси свой вклад в развитие!\n\n"
+        f"Для начала нужно проверить, подписаны ли вы на канал."
     )
     
     # Проверяем подписку на канал
     return await check_subscription(update, context)
+
 
 async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Проверка подписки пользователя на канал"""
@@ -130,29 +132,29 @@ async def check_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
             # Если пользователь не подписан, отправляем сообщение с кнопкой для подписки
             keyboard = [
                 [InlineKeyboardButton("Подписаться на канал", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")],
-                [InlineKeyboardButton("Проверить подписку", callback_data="check_subscription")]
+                [InlineKeyboardButton("Я подписан", callback_data="check_subscription")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
                 f"❌ Для участия в опросе необходимо подписаться на канал {CHANNEL_ID}.\n"
-                f"Пожалуйста, подпишитесь и нажмите кнопку 'Проверить подписку'.",
+                f"Пожалуйста, подпишитесь и нажмите кнопку 'Я подписан'.",
                 reply_markup=reply_markup
             )
             return CHECKING_SUBSCRIPTION
     except Exception as e:
         logging.error(f"Ошибка при проверке подписки: {e}")
         
-        # В случае ошибки тоже требуем подписаться и проверить подписку
+        # В случае ошибки тоже требуем подписаться и Я подписан
         keyboard = [
             [InlineKeyboardButton("Подписаться на канал", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")],
-            [InlineKeyboardButton("Проверить подписку", callback_data="check_subscription")]
+            [InlineKeyboardButton("Я подписан", callback_data="check_subscription")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
             f"❌ Произошла ошибка при проверке подписки на канал {CHANNEL_ID}.\n"
-            f"Пожалуйста, подпишитесь на канал и нажмите кнопку 'Проверить подписку'.",
+            f"Пожалуйста, подпишитесь на канал и нажмите кнопку 'Я подписан'.",
             reply_markup=reply_markup
         )
         return CHECKING_SUBSCRIPTION
@@ -174,13 +176,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await query.edit_message_text(
                     f"✅ Отлично! Вы подписаны на канал {CHANNEL_ID}. Теперь можно перейти к опросу."
                 )
+
                 # Переходим к первому вопросу опроса
                 return await ask_municipality_after_callback(update, context)
             else:
                 # Пользователь ещё не подписан
                 keyboard = [
                     [InlineKeyboardButton("Подписаться на канал", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")],
-                    [InlineKeyboardButton("Проверить подписку", callback_data="check_subscription")]
+                    [InlineKeyboardButton("Я подписан", callback_data="check_subscription")]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
@@ -196,13 +199,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             # В случае ошибки тоже требуем подписаться и проверить
             keyboard = [
                 [InlineKeyboardButton("Подписаться на канал", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")],
-                [InlineKeyboardButton("Проверить подписку", callback_data="check_subscription")]
+                [InlineKeyboardButton("Я подписан", callback_data="check_subscription")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
                 f"❌ Произошла ошибка при проверке подписки на канал {CHANNEL_ID}.\n"
-                f"Пожалуйста, убедитесь что вы подписаны и нажмите кнопку 'Проверить подписку' снова.",
+                f"Пожалуйста, убедитесь что вы подписаны и нажмите кнопку 'Я подписан' снова.",
                 reply_markup=reply_markup
             )
             return CHECKING_SUBSCRIPTION
@@ -387,7 +390,7 @@ async def handle_direction_selection(update: Update, context: ContextTypes.DEFAU
                 text="Оцените уровень развития Движения Первых на территории Вашего муниципального образования\n"
                      "Оцените по шкале от 1 до 5, где 5 - \"отлично\", а 1 - \"плохо\"",
                 reply_markup=ReplyKeyboardMarkup(
-                    [["5", "4", "3", "2", "1"]],
+                    [["5", "4", "3", "2", "1"][::-1]],
                     one_time_keyboard=True,
                     resize_keyboard=True
                 )
@@ -449,7 +452,7 @@ async def handle_region_rating(update: Update, context: ContextTypes.DEFAULT_TYP
             "Оцените уровень организации и проведения мероприятий Движения Первых в Вашей образовательной организации\n"
             "Оцените по шкале от 1 до 5, где 5 - \"отлично\", а 1 - \"плохо\"",
             reply_markup=ReplyKeyboardMarkup(
-                [["5", "4", "3", "2", "1"]],
+                [["5", "4", "3", "2", "1"][::-1]],
                 one_time_keyboard=True,
                 resize_keyboard=True
             )
@@ -459,7 +462,7 @@ async def handle_region_rating(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text(
             "Пожалуйста, выберите оценку от 1 до 5:",
             reply_markup=ReplyKeyboardMarkup(
-                [["5", "4", "3", "2", "1"]],
+                [["5", "4", "3", "2", "1"][::-1]],
                 one_time_keyboard=True,
                 resize_keyboard=True
             )
@@ -500,17 +503,21 @@ async def handle_organization_rating(update: Update, context: ContextTypes.DEFAU
                 f"👨‍🏫 Знание куратора: {response.get('knows_curator', 'Не указано')}\n"
                 f"🧭 Выбранные направления: {', '.join(selected_directions)}\n"
                 f"⭐ Оценка в муниципалитете: {response.get('region_rating', 'Не указано')}/5\n"
-                f"🏫 Оценка в организации: {response.get('organization_rating', 'Не указано')}/5\n"
+                f"🏫 Оценка в организации: {response.get('organization_rating', 'Не указано')}/5\n\n\n"
             )
             
-        await update.message.reply_text(summary)
+        await update.message.reply_text(summary + 
+            f"Будь с нами!\n\n" 
+            f"Также напоминаем о боте «ТРЕВОГА АСТРАХАНЬ» @trevoga30_bot в который приходит вся проверенная информация о БПЛА и других ЧП региона. "
+            f"Думайте. Подпишись, чтобы быть в курсе."
+        )
         
         return ConversationHandler.END
     else:
         await update.message.reply_text(
             "Пожалуйста, выберите оценку от 1 до 5:",
             reply_markup=ReplyKeyboardMarkup(
-                [["5", "4", "3", "2", "1"]],
+                [["5", "4", "3", "2", "1"][::-1]],
                 one_time_keyboard=True,
                 resize_keyboard=True
             )
@@ -850,6 +857,7 @@ def main() -> None:
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
+        allow_reentry=True
     )
     
     # Добавляем обработчики
