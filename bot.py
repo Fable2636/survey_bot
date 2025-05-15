@@ -281,7 +281,7 @@ async def handle_category(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         # Для студентов ВУЗа задаем вопрос о Молодежном центре "Коса"
         if category == "Студент ВУЗа":
             await update.message.reply_text(
-                "Знаете ли вы о работе Молодежного центра «Коса» @dmpp30",
+                "Знаете ли вы о работе Молодежного центра «Коса» @dmpp30?",
                 reply_markup=ReplyKeyboardMarkup(
                     [["Да"], ["Нет"]],
                     one_time_keyboard=True,
@@ -338,7 +338,7 @@ async def handle_education_org(update: Update, context: ContextTypes.DEFAULT_TYP
     
     # Для остальных категорий задаем вопрос о знании Движения Первых
     await update.message.reply_text(
-        "Знаете ли Вы о проектах Общероссийского общественно-государственного движения детей и молодежи \"Движение первых\"?",
+        "Знаете ли Вы о проектах Общероссийского общественно-государственного движения детей и молодежи \"Движение первых\"? @mypervie30",
         reply_markup=ReplyKeyboardMarkup(
             [["Да"], ["Нет"]],
             one_time_keyboard=True,
