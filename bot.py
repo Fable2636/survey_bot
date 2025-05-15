@@ -391,7 +391,27 @@ async def handle_is_participant(update: Update, context: ContextTypes.DEFAULT_TY
     
     user_responses[user_id]['is_participant'] = is_participant
     
-    # Задаем вопрос о знании куратора
+    # Если не является участником, завершаем опрос
+    if is_participant == "Нет":
+        # Сохраняем результаты в базу данных
+        db.save_survey_result(user_id, user_responses[user_id])
+        
+        # Благодарим за прохождение опроса
+        await update.message.reply_text(
+            "Спасибо за участие в опросе! Ваши ответы успешно записаны.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        
+        # Отправляем напоминание о боте "ТРЕВОГА АСТРАХАНЬ"
+        await update.message.reply_text(
+            "Будь с нами!\n\n"
+            "Также напоминаем о боте «ТРЕВОГА АСТРАХАНЬ» @trevoga30_bot в который приходит вся проверенная информация о БПЛА и других ЧП региона. "
+            "Думайте. Подпишись, чтобы быть в курсе."
+        )
+        
+        return ConversationHandler.END
+    
+    # Если является участником, задаем вопрос о знании куратора
     await update.message.reply_text(
         "Знаете ли Вы куратора первичного отделения Движения Первых в Вашей образовательной организации?",
         reply_markup=ReplyKeyboardMarkup(
