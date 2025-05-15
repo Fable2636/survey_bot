@@ -33,6 +33,7 @@ class Database:
                 user_id INTEGER PRIMARY KEY,
                 municipality TEXT,
                 category TEXT,
+                education_org TEXT,
                 knows_movement TEXT,
                 is_participant TEXT,
                 knows_curator TEXT,
@@ -49,52 +50,58 @@ class Database:
             logging.error(f"Ошибка создания таблиц: {e}")
     
     def save_survey_result(self, user_id: int, data: Dict[str, Any]) -> bool:
-        """Сохранение или обновление результатов опроса пользователя"""
+        """Сохранение результатов опроса в базу данных"""
         try:
-            # Преобразуем списки и другие сложные объекты в JSON строку
-            processed_data = {}
-            for key, value in data.items():
-                if isinstance(value, (list, dict)):
-                    processed_data[key] = json.dumps(value, ensure_ascii=False)
-                else:
-                    processed_data[key] = value
+            # Подготавливаем данные для сохранения
+            municipality = data.get('municipality', '')
+            category = data.get('category', '')
+            education_org = data.get('education_org', '')
+            knows_movement = data.get('knows_movement', '')
+            is_participant = data.get('is_participant', '')
+            knows_curator = data.get('knows_curator', '')
+            knows_kosa = data.get('knows_kosa', '')
             
-            # Проверяем, существует ли запись для этого пользователя
+            # Преобразуем список направлений в строку JSON
+            selected_directions = json.dumps(data.get('selected_directions', []))
+            
+            region_rating = data.get('region_rating', '')
+            organization_rating = data.get('organization_rating', '')
+            
+            # Проверяем, существует ли уже запись для этого пользователя
             self.cursor.execute("SELECT user_id FROM survey_results WHERE user_id = ?", (user_id,))
-            exists = self.cursor.fetchone()
+            existing_user = self.cursor.fetchone()
             
-            if exists:
+            if existing_user:
                 # Обновляем существующую запись
-                fields = []
-                values = []
-                
-                for key, value in processed_data.items():
-                    fields.append(f"{key} = ?")
-                    values.append(value)
-                
-                # Добавляем user_id в конец списка значений
-                values.append(user_id)
-                
-                query = f"UPDATE survey_results SET {', '.join(fields)} WHERE user_id = ?"
-                self.cursor.execute(query, values)
+                self.cursor.execute('''
+                UPDATE survey_results SET 
+                    municipality = ?, 
+                    category = ?,
+                    education_org = ?,
+                    knows_movement = ?, 
+                    is_participant = ?, 
+                    knows_curator = ?, 
+                    selected_directions = ?, 
+                    region_rating = ?, 
+                    organization_rating = ?,
+                    timestamp = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+                ''', (municipality, category, education_org, knows_movement, is_participant, knows_curator, 
+                      selected_directions, region_rating, organization_rating, user_id))
             else:
-                # Создаем новую запись
-                fields = ["user_id"]
-                placeholders = ["?"]
-                values = [user_id]
-                
-                for key, value in processed_data.items():
-                    fields.append(key)
-                    placeholders.append("?")
-                    values.append(value)
-                
-                query = f"INSERT INTO survey_results ({', '.join(fields)}) VALUES ({', '.join(placeholders)})"
-                self.cursor.execute(query, values)
+                # Вставляем новую запись
+                self.cursor.execute('''
+                INSERT INTO survey_results (
+                    user_id, municipality, category, education_org, knows_movement, is_participant, 
+                    knows_curator, selected_directions, region_rating, organization_rating
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (user_id, municipality, category, education_org, knows_movement, is_participant, 
+                      knows_curator, selected_directions, region_rating, organization_rating))
             
             self.conn.commit()
             logging.info(f"Результаты опроса для пользователя {user_id} успешно сохранены")
             return True
-        except sqlite3.Error as e:
+        except Exception as e:
             logging.error(f"Ошибка при сохранении результатов опроса: {e}")
             return False
     

@@ -39,7 +39,7 @@ else:
     CHANNEL_ID = "@" + CHANNEL_USERNAME
 
 # Состояния для ConversationHandler
-CHECKING_SUBSCRIPTION, MUNICIPALITY, CATEGORY, KNOWS_MOVEMENT, IS_PARTICIPANT, KNOWS_CURATOR, DIRECTIONS, REGION_RATING, ORGANIZATION_RATING = range(9)
+CHECKING_SUBSCRIPTION, MUNICIPALITY, CATEGORY, EDUCATION_ORG, KNOWS_MOVEMENT, IS_PARTICIPANT, KNOWS_CURATOR, DIRECTIONS, REGION_RATING, ORGANIZATION_RATING, KNOWS_KOSA = range(11)
 
 # Список администраторов (ID пользователей Telegram)
 ADMIN_IDS = os.getenv("ADMIN_IDS", "").split(",")
@@ -278,16 +278,24 @@ async def handle_category(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if category in categories:
         user_responses[user_id]['category'] = category
         
-        # Задаем вопрос о знании Движения Первых
-        await update.message.reply_text(
-            "Знаете ли Вы о проектах Общероссийского общественно-государственного движения детей и молодежи \"Движение первых\"?",
-            reply_markup=ReplyKeyboardMarkup(
-                [["Да"], ["Нет"]],
-                one_time_keyboard=True,
-                resize_keyboard=True
+        # Для студентов ВУЗа задаем вопрос о Молодежном центре "Коса"
+        if category == "Студент ВУЗа":
+            await update.message.reply_text(
+                "Знаете ли вы о работе Молодежного центра «Коса» @dmpp30",
+                reply_markup=ReplyKeyboardMarkup(
+                    [["Да"], ["Нет"]],
+                    one_time_keyboard=True,
+                    resize_keyboard=True
+                )
             )
+            return KNOWS_KOSA
+        
+        # Для остальных категорий запрашиваем название образовательной организации
+        await update.message.reply_text(
+            "Введите название Вашей образовательной организации:",
+            reply_markup=ReplyKeyboardRemove()
         )
-        return KNOWS_MOVEMENT
+        return EDUCATION_ORG
     else:
         await update.message.reply_text(
             "Пожалуйста, выберите один из предложенных вариантов:",
@@ -298,6 +306,46 @@ async def handle_category(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
         )
         return CATEGORY
+
+async def handle_education_org(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает ввод названия образовательной организации"""
+    user_id = update.effective_user.id
+    education_org = update.message.text
+    
+    # Сохраняем название образовательной организации
+    user_responses[user_id]['education_org'] = education_org
+    
+    category = user_responses[user_id]['category']
+    
+    # Для студентов ВУЗа завершаем опрос
+    if category == "Студент ВУЗа":
+        # Сохраняем результаты в базу данных
+        db.save_survey_result(user_id, user_responses[user_id])
+        
+        # Благодарим за прохождение опроса
+        await update.message.reply_text(
+            "Спасибо за участие в опросе! Ваши ответы успешно записаны.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        
+        # Отправляем напоминание о боте "ТРЕВОГА АСТРАХАНЬ"
+        await update.message.reply_text(
+            "Также напоминаем о боте «ТРЕВОГА АСТРАХАНЬ» @trevoga30_bot в который приходит вся проверенная информация о БПЛА и других ЧП региона. "
+            "Думайте. Подпишись, чтобы быть в курсе."
+        )
+        
+        return ConversationHandler.END
+    
+    # Для остальных категорий задаем вопрос о знании Движения Первых
+    await update.message.reply_text(
+        "Знаете ли Вы о проектах Общероссийского общественно-государственного движения детей и молодежи \"Движение первых\"?",
+        reply_markup=ReplyKeyboardMarkup(
+            [["Да"], ["Нет"]],
+            one_time_keyboard=True,
+            resize_keyboard=True
+        )
+    )
+    return KNOWS_MOVEMENT
 
 async def handle_knows_movement(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Обрабатывает ответ на вопрос о знании Движения Первых"""
@@ -319,10 +367,21 @@ async def handle_knows_movement(update: Update, context: ContextTypes.DEFAULT_TY
         return IS_PARTICIPANT
     else:
         # Если не знает, завершаем опрос
+        # Сохраняем результаты в базу данных
+        db.save_survey_result(user_id, user_responses[user_id])
+        
+        # Благодарим за прохождение опроса
         await update.message.reply_text(
             "Спасибо за участие в опросе! Ваши ответы записаны.",
             reply_markup=ReplyKeyboardRemove()
         )
+        
+        # Отправляем напоминание о боте "ТРЕВОГА АСТРАХАНЬ"
+        await update.message.reply_text(
+            "Также напоминаем о боте «ТРЕВОГА АСТРАХАНЬ» @trevoga30_bot в который приходит вся проверенная информация о БПЛА и других ЧП региона. "
+            "Думайте. Подпишись, чтобы быть в курсе."
+        )
+        
         return ConversationHandler.END
 
 async def handle_is_participant(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -350,6 +409,27 @@ async def handle_knows_curator(update: Update, context: ContextTypes.DEFAULT_TYP
     
     user_responses[user_id]['knows_curator'] = knows_curator
     
+    # Если не знает куратора, завершаем опрос
+    if knows_curator == "Нет":
+        # Сохраняем результаты в базу данных
+        db.save_survey_result(user_id, user_responses[user_id])
+        
+        # Благодарим за прохождение опроса
+        await update.message.reply_text(
+            "Спасибо за участие в опросе! Ваши ответы успешно записаны.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        
+        # Отправляем напоминание о боте "ТРЕВОГА АСТРАХАНЬ"
+        await update.message.reply_text(
+            "Будь с нами!\n\n"
+            "Также напоминаем о боте «ТРЕВОГА АСТРАХАНЬ» @trevoga30_bot в который приходит вся проверенная информация о БПЛА и других ЧП региона. "
+            "Думайте. Подпишись, чтобы быть в курсе."
+        )
+        
+        return ConversationHandler.END
+    
+    # Если знает куратора, продолжаем опрос с выбором направлений
     # Получаем список направлений и создаем клавиатуру
     keyboard = []
     for i, direction in enumerate(directions):
@@ -494,6 +574,7 @@ async def handle_organization_rating(update: Update, context: ContextTypes.DEFAU
             f"📋 Ваши ответы:\n\n"
             f"🏙️ Муниципальное образование: {response.get('municipality', 'Не указано')}\n"
             f"👤 Категория: {response.get('category', 'Не указано')}\n"
+            f"🏫 Образовательная организация: {response.get('education_org', 'Не указано')}\n"
             f"🚩 Знание о Движении Первых: {response.get('knows_movement', 'Не указано')}\n"
         )
         
@@ -695,6 +776,7 @@ async def show_user_details(query, context, user_id_to_show):
     details = f"👤 Детальная информация о пользователе {user_id_to_show}:\n\n"
     details += f"🏙️ Муниципальное образование: {result.get('municipality', 'Не указано')}\n"
     details += f"👤 Категория: {result.get('category', 'Не указано')}\n"
+    details += f"🏫 Образовательная организация: {result.get('education_org', 'Не указано')}\n"
     details += f"🚩 Знание о Движении Первых: {result.get('knows_movement', 'Не указано')}\n"
     
     if result.get('knows_movement') == "Да":
@@ -807,6 +889,22 @@ async def export_results(query, context):
             reply_markup=reply_markup
         )
 
+# Добавляем новый обработчик для ответа о Молодежном центре "Коса"
+async def handle_knows_kosa(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает ответ на вопрос о знании Молодежного центра "Коса" и запрашивает название образовательной организации"""
+    user_id = update.effective_user.id
+    knows_kosa = update.message.text
+    
+    # Сохраняем ответ пользователя
+    user_responses[user_id]['knows_kosa'] = knows_kosa
+    
+    # Запрашиваем название образовательной организации
+    await update.message.reply_text(
+        "Введите название Вашей образовательной организации:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return EDUCATION_ORG
+
 # Функция для корректного завершения работы бота
 def shutdown_handler(signal_number, frame):
     """Обработчик сигналов завершения для корректного закрытия соединения с БД"""
@@ -837,6 +935,9 @@ def main() -> None:
             CATEGORY: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_category)
             ],
+            EDUCATION_ORG: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_education_org)
+            ],
             KNOWS_MOVEMENT: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_knows_movement)
             ],
@@ -854,6 +955,9 @@ def main() -> None:
             ],
             ORGANIZATION_RATING: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_organization_rating)
+            ],
+            KNOWS_KOSA: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_knows_kosa)
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
