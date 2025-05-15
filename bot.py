@@ -429,27 +429,6 @@ async def handle_knows_curator(update: Update, context: ContextTypes.DEFAULT_TYP
     
     user_responses[user_id]['knows_curator'] = knows_curator
     
-    # Если не знает куратора, завершаем опрос
-    if knows_curator == "Нет":
-        # Сохраняем результаты в базу данных
-        db.save_survey_result(user_id, user_responses[user_id])
-        
-        # Благодарим за прохождение опроса
-        await update.message.reply_text(
-            "Спасибо за участие в опросе! Ваши ответы успешно записаны.",
-            reply_markup=ReplyKeyboardRemove()
-        )
-        
-        # Отправляем напоминание о боте "ТРЕВОГА АСТРАХАНЬ"
-        await update.message.reply_text(
-            "Будь с нами!\n\n"
-            "Также напоминаем о боте «ТРЕВОГА АСТРАХАНЬ» @trevoga30_bot в который приходит вся проверенная информация о БПЛА и других ЧП региона. "
-            "Думайте. Подпишись, чтобы быть в курсе."
-        )
-        
-        return ConversationHandler.END
-    
-    # Если знает куратора, продолжаем опрос с выбором направлений
     # Получаем список направлений и создаем клавиатуру
     keyboard = []
     for i, direction in enumerate(directions):
