@@ -25,29 +25,47 @@ class Database:
             logging.error(f"Ошибка подключения к базе данных: {e}")
     
     def create_tables(self):
-        """Создание необходимых таблиц, если они не существуют"""
+        """Создание необходимых таблиц и добавление недостающих колонок"""
         try:
             # Таблица для хранения результатов опроса
             self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS survey_results (
                 user_id INTEGER PRIMARY KEY,
-                municipality TEXT,
-                category TEXT,
-                education_org TEXT,
-                knows_movement TEXT,
-                is_participant TEXT,
-                knows_curator TEXT,
-                selected_directions TEXT,
-                region_rating TEXT,
-                organization_rating TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
             ''')
             
+            # Список всех ожидаемых колонок
+            expected_columns = [
+                ('municipality', 'TEXT'),
+                ('category', 'TEXT'),
+                ('education_org', 'TEXT'),
+                ('knows_movement', 'TEXT'),
+                ('is_participant', 'TEXT'),
+                ('knows_curator', 'TEXT'),
+                ('selected_directions', 'TEXT'),
+                ('region_rating', 'TEXT'),
+                ('organization_rating', 'TEXT'),
+                ('knows_kosa', 'TEXT')
+            ]
+            
+            # Получаем информацию о существующих колонках
+            self.cursor.execute("PRAGMA table_info(survey_results)")
+            existing_columns = {column[1] for column in self.cursor.fetchall()}
+            
+            # Проверяем и добавляем отсутствующие колонки
+            for column_name, column_type in expected_columns:
+                if column_name not in existing_columns:
+                    try:
+                        self.cursor.execute(f"ALTER TABLE survey_results ADD COLUMN {column_name} {column_type}")
+                        logging.info(f"Добавлена колонка {column_name} в таблицу survey_results")
+                    except sqlite3.Error as e:
+                        logging.error(f"Ошибка при добавлении колонки {column_name}: {e}")
+            
             self.conn.commit()
-            logging.info("Таблицы успешно созданы или уже существуют")
+            logging.info("Таблицы успешно созданы или обновлены")
         except sqlite3.Error as e:
-            logging.error(f"Ошибка создания таблиц: {e}")
+            logging.error(f"Ошибка создания/обновления таблиц: {e}")
     
     def save_survey_result(self, user_id: int, data: Dict[str, Any]) -> bool:
         """Сохранение результатов опроса в базу данных"""
@@ -84,19 +102,20 @@ class Database:
                     selected_directions = ?, 
                     region_rating = ?, 
                     organization_rating = ?,
+                    knows_kosa = ?,
                     timestamp = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 ''', (municipality, category, education_org, knows_movement, is_participant, knows_curator, 
-                      selected_directions, region_rating, organization_rating, user_id))
+                      selected_directions, region_rating, organization_rating, knows_kosa, user_id))
             else:
                 # Вставляем новую запись
                 self.cursor.execute('''
                 INSERT INTO survey_results (
                     user_id, municipality, category, education_org, knows_movement, is_participant, 
-                    knows_curator, selected_directions, region_rating, organization_rating
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    knows_curator, selected_directions, region_rating, organization_rating, knows_kosa
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (user_id, municipality, category, education_org, knows_movement, is_participant, 
-                      knows_curator, selected_directions, region_rating, organization_rating))
+                      knows_curator, selected_directions, region_rating, organization_rating, knows_kosa))
             
             self.conn.commit()
             logging.info(f"Результаты опроса для пользователя {user_id} успешно сохранены")
