@@ -46,7 +46,8 @@ class Database:
                 ('selected_directions', 'TEXT'),
                 ('region_rating', 'TEXT'),
                 ('organization_rating', 'TEXT'),
-                ('knows_kosa', 'TEXT')
+                ('knows_kosa', 'TEXT'),
+                ('student_government_rating', 'TEXT')
             ]
             
             # Получаем информацию о существующих колонках
@@ -85,6 +86,9 @@ class Database:
             region_rating = data.get('region_rating', '')
             organization_rating = data.get('organization_rating', '')
             
+            # Получаем оценку студенческого самоуправления, если есть
+            student_government_rating = data.get('student_government_rating', '')
+            
             # Проверяем, существует ли уже запись для этого пользователя
             self.cursor.execute("SELECT user_id FROM survey_results WHERE user_id = ?", (user_id,))
             existing_user = self.cursor.fetchone()
@@ -103,19 +107,23 @@ class Database:
                     region_rating = ?, 
                     organization_rating = ?,
                     knows_kosa = ?,
+                    student_government_rating = ?,
                     timestamp = CURRENT_TIMESTAMP
                 WHERE user_id = ?
                 ''', (municipality, category, education_org, knows_movement, is_participant, knows_curator, 
-                      selected_directions, region_rating, organization_rating, knows_kosa, user_id))
+                      selected_directions, region_rating, organization_rating, knows_kosa, 
+                      student_government_rating, user_id))
             else:
                 # Вставляем новую запись
                 self.cursor.execute('''
                 INSERT INTO survey_results (
                     user_id, municipality, category, education_org, knows_movement, is_participant, 
-                    knows_curator, selected_directions, region_rating, organization_rating, knows_kosa
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    knows_curator, selected_directions, region_rating, organization_rating, knows_kosa,
+                    student_government_rating
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (user_id, municipality, category, education_org, knows_movement, is_participant, 
-                      knows_curator, selected_directions, region_rating, organization_rating, knows_kosa))
+                      knows_curator, selected_directions, region_rating, organization_rating, knows_kosa,
+                      student_government_rating))
             
             self.conn.commit()
             logging.info(f"Результаты опроса для пользователя {user_id} успешно сохранены")
@@ -182,9 +190,11 @@ class Database:
                 'knows_movement': {'Да': 0, 'Нет': 0, 'Не указано': 0},
                 'is_participant': {'Да': 0, 'Нет': 0, 'Не указано': 0},
                 'knows_curator': {'Да': 0, 'Нет': 0, 'Не указано': 0},
+                'knows_kosa': {'Да': 0, 'Нет': 0, 'Не указано': 0},
                 'selected_directions': {},
                 'region_rating': {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0, 'Не указано': 0},
-                'organization_rating': {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0, 'Не указано': 0}
+                'organization_rating': {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0, 'Не указано': 0},
+                'student_government_rating': {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0, 'Не указано': 0}
             }
             
             # Получаем все результаты
@@ -203,15 +213,24 @@ class Database:
                 
                 # Знание о движении
                 knows = result.get('knows_movement', 'Не указано')
-                stats['knows_movement'][knows] = stats['knows_movement'].get(knows, 0) + 1
+                if knows and knows in stats['knows_movement']:
+                    stats['knows_movement'][knows] += 1
+                else:
+                    stats['knows_movement']['Не указано'] += 1
                 
                 # Участие в движении
                 participant = result.get('is_participant', 'Не указано')
-                stats['is_participant'][participant] = stats['is_participant'].get(participant, 0) + 1
+                if participant and participant in stats['is_participant']:
+                    stats['is_participant'][participant] += 1
+                else:
+                    stats['is_participant']['Не указано'] += 1
                 
                 # Знание куратора
                 curator = result.get('knows_curator', 'Не указано')
-                stats['knows_curator'][curator] = stats['knows_curator'].get(curator, 0) + 1
+                if curator and curator in stats['knows_curator']:
+                    stats['knows_curator'][curator] += 1
+                else:
+                    stats['knows_curator']['Не указано'] += 1
                 
                 # Направления
                 directions = result.get('selected_directions', [])
@@ -221,10 +240,30 @@ class Database:
                 
                 # Рейтинги
                 region = result.get('region_rating', 'Не указано')
-                stats['region_rating'][region] = stats['region_rating'].get(region, 0) + 1
+                if region and region in stats['region_rating']:
+                    stats['region_rating'][region] += 1
+                else:
+                    stats['region_rating']['Не указано'] += 1
                 
                 org = result.get('organization_rating', 'Не указано')
-                stats['organization_rating'][org] = stats['organization_rating'].get(org, 0) + 1
+                if org and org in stats['organization_rating']:
+                    stats['organization_rating'][org] += 1
+                else:
+                    stats['organization_rating']['Не указано'] += 1
+                
+                # Рейтинг студенческого самоуправления
+                student_gov = result.get('student_government_rating', 'Не указано')
+                if student_gov and student_gov in stats['student_government_rating']:
+                    stats['student_government_rating'][student_gov] += 1
+                else:
+                    stats['student_government_rating']['Не указано'] += 1
+                
+                # Знание о молодежном центре "Коса"
+                kosa = result.get('knows_kosa', 'Не указано')
+                if kosa and kosa in stats['knows_kosa']:
+                    stats['knows_kosa'][kosa] += 1
+                else:
+                    stats['knows_kosa']['Не указано'] += 1
             
             return stats
         except Exception as e:

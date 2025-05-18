@@ -39,7 +39,7 @@ else:
     CHANNEL_ID = "@" + CHANNEL_USERNAME
 
 # Состояния для ConversationHandler
-CHECKING_SUBSCRIPTION, MUNICIPALITY, CATEGORY, EDUCATION_ORG, KNOWS_MOVEMENT, IS_PARTICIPANT, KNOWS_CURATOR, DIRECTIONS, REGION_RATING, ORGANIZATION_RATING, KNOWS_KOSA = range(11)
+CHECKING_SUBSCRIPTION, MUNICIPALITY, CATEGORY, EDUCATION_ORG, KNOWS_MOVEMENT, IS_PARTICIPANT, KNOWS_CURATOR, DIRECTIONS, REGION_RATING, ORGANIZATION_RATING, KNOWS_KOSA, STUDENT_GOVERNMENT_RATING = range(12)
 
 # Список администраторов (ID пользователей Telegram)
 ADMIN_IDS = os.getenv("ADMIN_IDS", "").split(",")
@@ -317,33 +317,18 @@ async def handle_education_org(update: Update, context: ContextTypes.DEFAULT_TYP
     
     category = user_responses[user_id]['category']
     
-    # Для студентов ВУЗа завершаем опрос
+    # Для студентов ВУЗа задаем дополнительный вопрос об оценке студенческого самоуправления
     if category == "Студент ВУЗа":
-        # Сохраняем результаты в базу данных
-        save_result = db.save_survey_result(user_id, user_responses[user_id])
-        
-        if save_result:
-            # Благодарим за прохождение опроса
-            await update.message.reply_text(
-                "Спасибо за участие в опросе! Ваши ответы успешно записаны.",
-                reply_markup=ReplyKeyboardRemove()
+        await update.message.reply_text(
+            "Оцените деятельность работы студенческого самоуправления Вашего учебного заведения\n"
+            "Оцените по шкале от 1 до 5, где 5 - \"отлично\", а 1 - \"плохо\"",
+            reply_markup=ReplyKeyboardMarkup(
+                [["5", "4", "3", "2", "1"][::-1]],
+                one_time_keyboard=True,
+                resize_keyboard=True
             )
-            
-            # Отправляем напоминание о боте "ТРЕВОГА АСТРАХАНЬ"
-            await update.message.reply_text(
-                "Также напоминаем о боте \"ТРЕВОГА АСТРАХАНЬ\" @trevoga30_bot в который приходит вся проверенная информация о БПЛА и других ЧП региона. "
-                "Думайте. Подпишись, чтобы быть в курсе."
-            )
-        else:
-            # Сообщаем о проблеме с сохранением данных
-            await update.message.reply_text(
-                "К сожалению, произошла ошибка при сохранении ваших ответов. Пожалуйста, попробуйте пройти опрос позже.",
-                reply_markup=ReplyKeyboardRemove()
-            )
-            # Логируем ошибку
-            logger.error(f"Не удалось сохранить результаты опроса для пользователя {user_id}")
-        
-        return ConversationHandler.END
+        )
+        return STUDENT_GOVERNMENT_RATING
     
     # Для остальных категорий задаем вопрос о знании Движения Первых
     await update.message.reply_text(
@@ -587,12 +572,6 @@ async def handle_organization_rating(update: Update, context: ContextTypes.DEFAU
         save_result = db.save_survey_result(user_id, user_responses[user_id])
         
         if save_result:
-            # Благодарим за прохождение опроса
-            await update.message.reply_text(
-                "Спасибо за участие в опросе! Ваши ответы успешно записаны.",
-                reply_markup=ReplyKeyboardRemove()
-            )
-            
             # Выводим результаты опроса
             response = user_responses[user_id]
             selected_directions = [directions[idx] for idx in response.get('selected_directions', [])]
@@ -602,18 +581,25 @@ async def handle_organization_rating(update: Update, context: ContextTypes.DEFAU
                 f"🏙️ Муниципальное образование: {response.get('municipality', 'Не указано')}\n"
                 f"👤 Категория: {response.get('category', 'Не указано')}\n"
                 f"🏫 Образовательная организация: {response.get('education_org', 'Не указано')}\n"
-                f"🚩 Знание о Движении Первых: {response.get('knows_movement', 'Не указано')}\n"
             )
             
-            if response.get('knows_movement') == "Да":
+            if response.get('category') == "Студент ВУЗа":
                 summary += (
-                    f"🧑‍🤝‍🧑 Участие в Движении: {response.get('is_participant', 'Не указано')}\n"
-                    f"👨‍🏫 Знание куратора: {response.get('knows_curator', 'Не указано')}\n"
-                    f"🧭 Выбранные направления: {', '.join(selected_directions)}\n"
-                    f"⭐ Оценка в муниципалитете: {response.get('region_rating', 'Не указано')}/5\n"
-                    f"🏫 Оценка в организации: {response.get('organization_rating', 'Не указано')}/5\n\n\n"
+                    f"📊 Оценка студенческого самоуправления: {response.get('student_government_rating', 'Не указано')}/5\n"
+                    f"🚩 Знание о Молодежном центре \"Коса\": {response.get('knows_kosa', 'Не указано')}\n\n\n"
                 )
+            else:
+                summary += f"🚩 Знание о Движении Первых: {response.get('knows_movement', 'Не указано')}\n"
                 
+                if response.get('knows_movement') == "Да":
+                    summary += (
+                        f"🧑‍🤝‍🧑 Участие в Движении: {response.get('is_participant', 'Не указано')}\n"
+                        f"👨‍🏫 Знание куратора: {response.get('knows_curator', 'Не указано')}\n"
+                        f"🧭 Выбранные направления: {', '.join(selected_directions)}\n"
+                        f"⭐ Оценка в муниципалитете: {response.get('region_rating', 'Не указано')}/5\n"
+                        f"🏫 Оценка в организации: {response.get('organization_rating', 'Не указано')}/5\n\n\n"
+                    )
+            
             await update.message.reply_text(summary + 
                 f"Будь с нами!\n\n" 
                 f"Также напоминаем о боте \"ТРЕВОГА АСТРАХАНЬ\" @trevoga30_bot в который приходит вся проверенная информация о БПЛА и других ЧП региона. "
@@ -724,6 +710,18 @@ async def show_stats(query, context):
     for category, count in sorted(stats['categories'].items(), key=lambda x: x[1], reverse=True):
         percentage = (count / total_users) * 100 if total_users else 0
         stats_message += f"• {category}: {count} ({percentage:.1f}%)\n"
+    
+    stats_message += "\nОценка студенческого самоуправления:\n"
+    for rating, count in sorted(stats['student_government_rating'].items(), key=lambda x: (0 if x[0] == 'Не указано' else int(x[0])), reverse=True):
+        if count > 0:
+            percentage = (count / total_users) * 100 if total_users else 0
+            stats_message += f"• {rating}: {count} ({percentage:.1f}%)\n"
+    
+    stats_message += "\nЗнание о Молодежном центре \"Коса\":\n"
+    for knows, count in stats['knows_kosa'].items():
+        if count > 0:
+            percentage = (count / total_users) * 100 if total_users else 0
+            stats_message += f"• {knows}: {count} ({percentage:.1f}%)\n"
     
     stats_message += "\nЗнание о Движении Первых:\n"
     for knows, count in stats['knows_movement'].items():
@@ -863,9 +861,10 @@ async def export_results(query, context):
         
         # Заголовки CSV
         headers = [
-            "ID пользователя", "Муниципалитет", "Категория", "Знает о Движении", 
+            "ID пользователя", "Муниципалитет", "Категория", "Образовательная организация", "Знает о Движении", 
             "Участник Движения", "Знает куратора", "Направления", 
-            "Оценка региона", "Оценка организации", "Дата и время"
+            "Оценка региона", "Оценка организации", "Оценка студенческого самоуправления", 
+            "Знает о Молодежном центре \"Коса\"", "Дата и время"
         ]
         writer.writerow(headers)
         
@@ -878,12 +877,15 @@ async def export_results(query, context):
                 result['user_id'],
                 result.get('municipality', ''),
                 result.get('category', ''),
+                result.get('education_org', ''),
                 result.get('knows_movement', ''),
                 result.get('is_participant', ''),
                 result.get('knows_curator', ''),
                 directions_str,
                 result.get('region_rating', ''),
                 result.get('organization_rating', ''),
+                result.get('student_government_rating', ''),
+                result.get('knows_kosa', ''),
                 result.get('timestamp', '')
             ]
             writer.writerow(row)
@@ -940,6 +942,64 @@ async def handle_knows_kosa(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     )
     return EDUCATION_ORG
 
+async def handle_student_government_rating(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает оценку студенческого самоуправления"""
+    user_id = update.effective_user.id
+    rating = update.message.text
+    
+    if rating in ["1", "2", "3", "4", "5"]:
+        user_responses[user_id]['student_government_rating'] = rating
+        
+        # Сохраняем результаты в базу данных
+        save_result = db.save_survey_result(user_id, user_responses[user_id])
+        
+        if save_result:
+            # Благодарим за прохождение опроса
+            await update.message.reply_text(
+                "Спасибо за участие в опросе! Ваши ответы успешно записаны.",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            
+            # Выводим результаты опроса
+            response = user_responses[user_id]
+            
+            summary = (
+                f"📋 Ваши ответы:\n\n"
+                f"🏙️ Муниципальное образование: {response.get('municipality', 'Не указано')}\n"
+                f"👤 Категория: {response.get('category', 'Не указано')}\n"
+                f"🏫 Образовательная организация: {response.get('education_org', 'Не указано')}\n"
+                f"📊 Оценка студенческого самоуправления: {response.get('student_government_rating', 'Не указано')}/5\n"
+                f"🚩 Знание о Молодежном центре \"Коса\": {response.get('knows_kosa', 'Не указано')}\n"
+            )
+            
+            await update.message.reply_text(summary)
+            
+            # Отправляем напоминание о боте "ТРЕВОГА АСТРАХАНЬ"
+            await update.message.reply_text(
+                "Также напоминаем о боте \"ТРЕВОГА АСТРАХАНЬ\" @trevoga30_bot в который приходит вся проверенная информация о БПЛА и других ЧП региона. "
+                "Думайте. Подпишись, чтобы быть в курсе."
+            )
+        else:
+            # Сообщаем о проблеме с сохранением данных
+            await update.message.reply_text(
+                "К сожалению, произошла ошибка при сохранении ваших ответов. Пожалуйста, попробуйте пройти опрос позже.",
+                reply_markup=ReplyKeyboardRemove()
+            )
+            # Логируем ошибку
+            logger.error(f"Не удалось сохранить результаты опроса для пользователя {user_id}")
+        
+        return ConversationHandler.END
+    else:
+        await update.message.reply_text(
+            "Пожалуйста, выберите оценку от 1 до 5:",
+            reply_markup=ReplyKeyboardMarkup(
+                [["5", "4", "3", "2", "1"][::-1]],
+                one_time_keyboard=True,
+                resize_keyboard=True
+            )
+        )
+        return STUDENT_GOVERNMENT_RATING
+
 # Функция для корректного завершения работы бота
 def shutdown_handler(signal_number, frame):
     """Обработчик сигналов завершения для корректного закрытия соединения с БД"""
@@ -993,6 +1053,9 @@ def main() -> None:
             ],
             KNOWS_KOSA: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, handle_knows_kosa)
+            ],
+            STUDENT_GOVERNMENT_RATING: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, handle_student_government_rating)
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
